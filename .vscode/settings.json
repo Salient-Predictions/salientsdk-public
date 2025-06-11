@@ -1,0 +1,18 @@
+{
+    "files.autoSave": "onWindowChange",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+    },
+    "ruff.nativeServer": "on",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "[yaml]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[jupyter]": {
+        "editor.formatOnSave": true,
+        "editor.formatOnType": true
+    }, 
+}

@@ -1,0 +1,155 @@
+[tool.poetry]
+name = "salientsdk"
+version = "0.3.37"
+description = "Salient Predictions Software Development Kit"
+authors = ["Salient Predictions <help@salientpredictions.com>"]
+license = "LicenseRef-Custom"
+readme = "docs/index.md"
+keywords = ["weather","climate","forecasting","sdk","salient","s2s"]
+homepage = "https://salientpredictions.com"
+# Native doc at https://salient-predictions.github.io/salientsdk/
+# Redirect to sdk via CNAME at https://domains.google.com/registrar/salientpredictions.com/dns
+# Configure custom domain at https://github.com/Salient-Predictions/salientsdk/settings/pages
+documentation = "https://salient-predictions.github.io/salientsdk"
+repository = "https://github.com/Salient-Predictions/salientsdk"
+include = ["salientsdk/examples/*.ipynb","salientsdk/data/*.csv","salientsdk/data/*.nc"]
+
+[tool.poetry.urls]
+"License" = "https://sdk.salientpredictions.com/LICENSE/"
+
+[tool.poetry.dependencies]
+# export POETRY_KEYRING_ENABLED=false or poetry config keyring.enabled false
+# poetry add <packagename>
+dask = ">=2024.4.2"
+google = "^3.0.0"
+google-cloud-secret-manager = "^2.19.0"
+h5netcdf = "^1.3.0"
+numpy = ">=1.24.4,<3.0.0"
+pandas = ">=2.2.0,<3.0.0"
+python = "^3.10"
+requests = "^2.31.0"
+scipy = ">=1.11.4"
+toml = "^0.10.2"
+xarray = ">=2024.3.0"
+pvlib = "^0.10.5"
+geopandas = ">=0.14.4"
+cartopy = ">=0.18.0"
+ratelimit = "^2.2.1"
+backoff = "^2.2.1"
+scikit-learn = ">=1.1.3"
+netcdf4 = "^1.6.5"
+zarr = "2.17.1"
+# force numpy2 compatibility
+# A module that was compiled using NumPy 1.x cannot be run in NumPy 2.1.3
+bottleneck = ">=1.3.8"
+pyarrow = ">=14.0.0"
+s3fs = "^2025.2.0"
+pcodec = "^0.3.4"
+pint-xarray = "^0.4"
+
+[tool.poetry.group.hydro.dependencies]
+metsim = "^2.4.4"
+soiltexture = "^1.0.4"
+
+[tool.poetry.group.dev.dependencies]
+# use "poetry add --group dev <packagename>" to edit this list
+build = "^1.2.2.post1"
+markdown-include = "^0.8.1"
+mkdocs = "^1.5.3"
+mkdocs-material = "^9.5.15"
+mkdocs-jupyter = "^0.24.6"
+mkdocs-glightbox = "^0.3.7"
+mkdocs-static-i18n = "^1.2.3"
+mkdocstrings = "^0.27.0"
+mkdocstrings-python = "^1.12.2"
+nbmake = "^1.5.3"
+pydoc-markdown = "^4.8.2"
+pytest = "^8.1.1"
+pytest-cov = "^5.0.0"
+ruff = "^0.3.4"
+pre-commit = "^3.7.1"
+properscoring = "^0.1"
+ipykernel = "^6.29.5"
+
+[tool.poetry.group.examples.dependencies]
+# These dependencies are used by the examples ipynotebooks
+# poetry add <packagename> --group examples
+matplotlib = "^3.8.4"
+
+[tool.poetry.scripts]
+# This creates the 'salientsdk' command
+salientsdk = "salientsdk.cli:main"
+
+[build-system]
+# poetry build
+# -- to publish to test pypi --
+# poetry config repositories.testpypi https://test.pypi.org/legacy/
+# poetry config pypi-token.testpypi <your-test-pypi-token>
+# poetry publish -r testpypi
+# pip install --index-url https://test.pypi.org/simple/ salientsdk
+# -- to publish to the canonical pypi --
+# poetry config pypi-token.pypi <your-pypi-token>
+# poetry publish
+# pip install salientsdk
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 99
+exclude = ""
+
+# Make sure that isort and black play nicely together
+# (both are part of our precommit)
+[tool.isort]
+profile = "black"
+
+# These are the ruff settings that are explicitly supplied to pre-commit for enforcement
+[tool.ruff]
+# Should match black
+line-length = 99
+# Assume Python 3.9
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+   # C90 = mccabe-complexity
+   "C90", 
+   # E722 = do not use base except
+   "E722", 
+   "E9",
+   # pydocstyle
+   "D",
+   # pycodestyle
+   "W", 
+   # unused imports
+   "F401", 
+   # Flake8 checks
+   "F7",
+   # Import sorting/ordering
+   "I",
+   # Undeclared dependencies
+   "UP035",
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["salientsdk"] 
+
+[tool.ruff.lint.mccabe]
+max-complexity = 25
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pytest.ini_options]
+testpaths = [
+   "tests",
+   "examples"
+]
+filterwarnings = [
+   "ignore::DeprecationWarning"
+]
+
+[tool.vulture]
+paths = ["salientsdk","tests"]
+min_confidence = 60

@@ -1,0 +1,91 @@
+name: Bump Version & PR develop to main
+on:
+  schedule:
+    # Run every Monday morning
+    - cron: 0 6 * * 1
+  workflow_dispatch:
+
+jobs:
+  check_schedule:
+    runs-on: ubuntu-latest
+    outputs:
+      should_proceed: ${{ steps.check_schedule.outputs.should_proceed }}
+      date: ${{ steps.check_schedule.outputs.date }}
+    steps:
+      - name: Check schedule and get date
+        id: check_schedule
+        run: |
+          # Get current date
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+          # Check if we should proceed (even week or manual trigger)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Should proceed: true (manual trigger)"
+            echo "should_proceed=true" >> $GITHUB_OUTPUT
+          else
+            # Calculate if this is an even or odd week (0 for even, 1 for odd)
+            WEEK_NUM=$(date +'%W')
+            WEEK_MOD=$(expr $WEEK_NUM % 2)
+            
+            if [[ "$WEEK_MOD" == "0" ]]; then
+              echo "Should proceed: true (even week)"
+              echo "should_proceed=true" >> $GITHUB_OUTPUT
+            else
+              echo "Should proceed: false (odd week)"
+              echo "should_proceed=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  createPullRequest:
+    needs: check_schedule
+    if: ${{ needs.check_schedule.outputs.should_proceed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: "Generate GitHub token"
+        id: get_app_token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.ACTIONS_APP_ID }}
+          private_key: ${{ secrets.ACTIONS_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          token: ${{ steps.get_app_token.outputs.token }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.5"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 2.1.2
+
+      - name: Bump version and push to develop
+        id: bump_version
+        env:
+          GITHUB_TOKEN: ${{ steps.get_app_token.outputs.token }}
+        run: |
+          git config --local user.name ${{ github.actor }}
+          git config --local user.email ${{ github.actor }}@users.noreply.github.com
+          poetry version patch
+          VERSION=$(poetry version -s)
+          git commit -am "Bump version to ${VERSION} for release"
+          git push origin develop
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: PR dev to main
+        run: |
+          gh pr create \
+            --base main \
+            --head develop \
+            --title "Release Candidate ${{ needs.check_schedule.outputs.date }} - version ${{ steps.bump_version.outputs.version }}" \
+            --body "This is an automated release candidate, created from the current state of develop. Version has been bumped to ${{ steps.bump_version.outputs.version }} in develop." \
+            --label "automated release"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

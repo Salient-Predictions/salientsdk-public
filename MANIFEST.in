@@ -1,0 +1,4 @@
+include docs/LICENSE.md
+include README.md
+include pyproject.toml
+recursive-include examples *.ipynb

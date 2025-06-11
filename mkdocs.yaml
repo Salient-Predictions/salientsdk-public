@@ -1,0 +1,72 @@
+site_name: Salient SDK Documentation
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/favicon.ico
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tracking
+
+repo_name: salientsdk
+repo_url: https://github.com/Salient-Predictions/salientsdk
+edit_uri: ./blob/site/
+
+plugins:
+  - search
+  - i18n: # Use this to copy CNAME to /site during build
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+      static_templates:
+        - CNAME
+  - mkdocstrings:
+      handlers:
+        python:
+          selection:
+            filters: ["!^_"]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_source: false
+            show_if_no_docstring: false
+            show_private_members: false
+            filters: None
+            members_order: source
+            heading_level: 3
+  - mkdocs-jupyter:
+      ignore_h1_titles: true
+  - glightbox
+
+markdown_extensions:
+  - markdown_include.include:
+      base_path: .
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          # format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.arithmatex:
+      generic: true
+
+nav:
+  - Home: index.md
+  - API Reference: api.md
+  - License: LICENSE.md

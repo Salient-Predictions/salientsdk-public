@@ -1,0 +1,12 @@
+{
+    "recommendations": [
+        "ms-python.python",
+        "ms-toolsai.jupyter",
+        "github.copilot",
+        "charliermarsh.ruff",
+        "esbenp.prettier-vscode",
+        "mechatroner.rainbow-csv",
+        "jumpinjackie.vscode-map-preview",
+        "github.vscode-github-actions",
+    ]
+}
