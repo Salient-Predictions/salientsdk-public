@@ -19,6 +19,7 @@ python -m salientsdk data_timeseries -lat 42 -lon -73 -fld all -var temp,precip 
 """
 
 from datetime import datetime
+from typing import Literal
 
 import dask
 import numpy as np
@@ -26,11 +27,15 @@ import pandas as pd
 import requests
 import xarray as xr
 
-from .constants import _build_urls, _expand_comma
+from .constants import Format, Weights, _build_urls, _expand_comma, _validate_enum
 from .location import Location
 from .login_api import download_queries
 
-HOURLY_VARIABLES = [
+Frequency = Literal["hourly", "daily", "weekly", "monthly", "3-monthly"]
+Field = Literal[
+    "anom", "anom_d", "anom_ds", "anom_qnt", "anom_s", "clim", "stdv", "trend", "vals", "all"
+]
+HourlyVariable = Literal[
     "cc",
     "precip",
     "sm",
@@ -47,18 +52,21 @@ HOURLY_VARIABLES = [
     "wspd100",
 ]
 
+_EXCLUDE_ARGS = ["force", "session", "verify", "verbose", "destination", "strict", "loc", "kwargs"]
+
 
 def data_timeseries(
     # API inputs -------
     loc: Location,
-    variable: str | list[str] = "temp",
-    field: str | list[str] = "anom",
-    debias: bool = False,
+    variable: str | list[str] | None = "temp",
+    field: Field | list[Field] = "anom",
+    debias: bool = False,  # noqa: vulture
     start: str = "1950-01-01",
     end: str = "-today",
-    format: str = "nc",
-    frequency: str = "daily",
-    weights: str | None = None,
+    format: Format = "nc",
+    frequency: Frequency = "daily",
+    weights: Weights = None,
+    custom_quantity: str | list[str] | None = None,
     # non-API arguments ---
     destination: str = "-default",
     force: bool = False,
@@ -77,23 +85,23 @@ def data_timeseries(
         loc (Location): The location to query.
             If using a `shapefile` or `location_file`, may input a vector of file names which
             will trigger multiple calls to `data_timeseries`.
-        variable (str | list[str]): The variable to query, defaults to `temp`
+        variable (str | list[str] | None): The variable to query, defaults to `temp`
             To request multiple variables, separate them with a comma `temp,precip`
             This will download one file per variable
             See the
             [Data Fields](https://salientpredictions.notion.site/Variables-d88463032846402e80c9c0972412fe60)
             documentation for a full list of available historical variables.
+        custom_quantity (str | list[str] | None): Name of a previously-uploaded custom quantity definition.
+            Defaults to `None`.  If specified, ignores `variable`.
         field (str): The field to query, defaults to "anom"
         debias (bool): If True, debias the data to local observations.
             Disabled for `shapefile` locations.
             [detail](https://salientpredictions.notion.site/Debiasing-2888d5759eef4fe89a5ba3e40cd72c8f)
         start (str): The start date of the time series
         end (str): The end date of the time series
-        format (str): The format of the response
-        frequency (str): The frequency of the time series
-        weights (str): Aggregation mechanism if using a `shapefile` or `location_file`. Currently
-            supported options are 'population' for a population-weighed mean and 'equal' for an arithmetic mean.
-            Defaults to None, which will not perform any weighting or aggregation.
+        format (Format): The file format of the response
+        frequency (Frequency): The temporal frequency of the time series
+        weights (Weights): Aggregation mechanism if using a `shapefile`.
         destination (str): The directory to download the data to
         force (bool): If False (default), don't download the data if it already exists
         session (requests.Session): The session object to use for the request.
@@ -116,53 +124,27 @@ def data_timeseries(
             and additional columns documenting the vectorized input arguments such as `location_file`
             or `variable`
     """
-    field = _expand_comma(
-        field,
-        valid=[
-            "anom",
-            "anom_d",
-            "anom_ds",
-            "anom_qnt",
-            "anom_s",
-            "clim",
-            "stdv",
-            "trend",
-            "vals",
-            "all",
-        ],
-        name="field",
-    )
-    assert format in ["nc", "csv"], f"Invalid format {format}"
-    assert frequency in [
-        "hourly",
-        "daily",
-        "weekly",
-        "monthly",
-        "3-monthly",
-    ], f"Invalid frequency {frequency}"
+    format = _validate_enum(format, Format, name="format")
+    frequency = _validate_enum(frequency, Frequency, name="frequency")
+    weights = _validate_enum(weights, Weights, name="weights")
 
-    if field != "vals" and frequency == "hourly":
-        raise ValueError("Only field `vals` is available for hourly frequency")
+    custom_quantity = _expand_comma(custom_quantity, name="custom_quantity", default=None)
+    if custom_quantity is None:
+        variable = _expand_comma(
+            variable, HourlyVariable if frequency == "hourly" else None, "variable"
+        )
+        field = _expand_comma(field, valid=Field, name="field")
+        if field != "vals" and frequency == "hourly":
+            raise ValueError("Only field `vals` is available for hourly frequency")
+    else:
+        # Ignore these if custom_quantity is specified
+        variable = None
+        field = None
 
-    variable = _expand_comma(
-        variable, HOURLY_VARIABLES if frequency == "hourly" else None, "variable"
-    )
+    args = {k: v for k, v in {**locals(), **kwargs}.items() if k not in _EXCLUDE_ARGS}
 
     endpoint = "data_timeseries"
-    args = loc.asdict(
-        start=start,
-        end=end,
-        debias=debias,
-        field=field,
-        format=format,
-        frequency=frequency,
-        variable=variable,
-        weights=weights,
-        apikey=apikey,
-        **kwargs,
-    )
-
-    queries = _build_urls(endpoint, args, destination)
+    queries = _build_urls(endpoint, loc.asdict(**args), destination)
 
     download_queries(
         query=queries["query"].values,
@@ -180,10 +162,17 @@ def data_timeseries(
         # Now that we've executed the queries, we don't need it anymore:
         queries = queries.drop(columns="query")
 
-        # we vectorized on something other than variable, but we still need it
-        # in load_multihistory to rename the fields since we don't have short_name
-        if not "variable" in queries:
+        # load_multihistory needs either variable or custom_quantity to specify short_name
+        if "variable" in queries:
+            pass
+        elif "custom_quantity" in queries:
+            pass
+        elif variable is not None:
             queries["variable"] = variable
+        elif custom_quantity is not None:
+            queries["custom_quantity"] = custom_quantity
+        else:
+            raise ValueError("Must specify variable or custom_quantity")
 
         return queries
 
@@ -237,6 +226,7 @@ def stack_history(
     hist: xr.Dataset | str,
     forecast_date: xr.DataArray | np.ndarray,
     lead: xr.DataArray | np.ndarray,
+    compute: bool = True,
 ) -> xr.Dataset:
     """Restructure historical observations to match the structure of stacked forecast data.
 
@@ -244,16 +234,14 @@ def stack_history(
         hist: Historical observation dataset or path to dataset file
         forecast_date: Array of forecast dates
         lead: Array of lead times
+        compute: If False, lazy-load datasets and delay computation (default True)
 
     Returns:
         xarray Dataset with historical observations structured like forecast data aligned
                along `forecast_date`.
     """
-    # Enhancement: enable lazy loading to handle very large datasets
-    use_dask = False
-
     if isinstance(hist, str):
-        hist = xr.open_dataset(hist, chunks={}) if use_dask else xr.load_dataset(hist)
+        hist = xr.load_dataset(hist) if compute else xr.open_dataset(hist, chunks={})
 
     forecast_date = forecast_date.values if hasattr(forecast_date, "values") else forecast_date
     lead = lead.values if hasattr(lead, "values") else lead
@@ -266,6 +254,12 @@ def stack_history(
     # lead values returned by forecast_timeseries are 1-indexed.
     offset = -pd.Timedelta("1D")
 
+    # Sort the time index to ensure proper initialization of pandas' index engine.
+    # This prevents "Reindexing only valid with uniquely valued Index objects" errors
+    # that can occur during dask's delayed computation setup. The sorting also
+    # ensures a cleaner, ordered dataset for subsequent operations.
+    time_ds = time_ds.assign_coords(time=time_ds.time.to_index().sort_values())
+
     def process_forecast_date(f_date):
         """Extract relevant dates and denominate by lead."""
         return (
@@ -275,7 +269,7 @@ def stack_history(
             .expand_dims(dim={"forecast_date": [pd.Timestamp(f_date)]})
         )
 
-    if use_dask:
+    if not compute:
         delayed_datasets = [
             dask.delayed(process_forecast_date)(f_date) for f_date in forecast_date
         ]
@@ -292,7 +286,7 @@ def stack_history(
         result_ds = combined_time_ds
 
     # Determine chunking dynamically based on dataset dimensions
-    if use_dask:
+    if not compute:
         chunk_dict = {"forecast_date": 1}
         if "lead" in result_ds.dims:
             chunk_dict["lead"] = -1

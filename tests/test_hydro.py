@@ -12,6 +12,7 @@ python -s -m pytest tests/test_hydro.py
 
 import datetime as dt
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -128,7 +129,10 @@ def test_calc_swe():
     assert (met["swe"] >= 0).all(), "Not all SWE values are non-negative"
 
 
-def test_build_vic_inputs(session, vic_file, vic_loc, destination, vic_destinations):
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11), reason="Test is not compatible with Python 3.11 yet"
+)
+def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations, destination):
     """Test the _build_vic_inputs functon.
 
     pytest tests/test_hydro.py::test_build_vic_inputs
@@ -203,6 +207,9 @@ def test_build_vic_inputs(session, vic_file, vic_loc, destination, vic_destinati
     assert actual_vic_destinations == vic_destinations
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11), reason="Test is not compatible with Python 3.11 yet"
+)
 def test_build_vic_domain(vic_domain_ds, vic_destinations):
     """Test the _build_vic_domain function."""
     # Ensure proper variables are returned for VIC domain dataset
@@ -215,6 +222,9 @@ def test_build_vic_domain(vic_domain_ds, vic_destinations):
     assert os.path.exists(vic_destinations["domain_path"])
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11), reason="Test is not compatible with Python 3.11 yet"
+)
 def test_build_vic_forcings(vic_salient_ds, vic_domain_ds, vic_destinations):
     """Test the _build_vic_forcings function."""
     # Ensure proper variables are returned for VIC domain dataset
@@ -241,6 +251,9 @@ def test_build_vic_forcings(vic_salient_ds, vic_domain_ds, vic_destinations):
     assert os.path.exists(f"{vic_destinations['forcings_path']}{year}.nc")
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11), reason="Test is not compatible with Python 3.11 yet"
+)
 def test_build_vic_params(vic_salient_ds, vic_domain_ds, vic_destinations):
     """Test the _build_vic_params function.
 

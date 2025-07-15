@@ -19,36 +19,17 @@ python -m salientsdk forecast_timeseries -lat 42 -lon -73 -var temp,precip --tim
 """
 
 from datetime import datetime
+from typing import Literal
 
 import pandas as pd
 import requests
 import xarray as xr
 
-from .constants import _build_urls, _expand_comma
+from .constants import Format, Weights, _build_urls, _expand_comma, _validate_enum
 from .location import Location
 from .login_api import download_queries
 
-FORECAST_VARIABLES = [
-    "cc",
-    "cdd",
-    "hdd",
-    "heat_index",
-    "hgt500",
-    "mslp",
-    "precip",
-    "rh",
-    "temp",
-    "tmax",
-    "tmin",
-    "tsi",
-    "wgst",
-    "wind_chill",
-    "wspd",
-    "wspd100",
-]
-
-
-MODELS = [
+Model = Literal[
     "gem",
     "clim",
     "gfs",
@@ -67,6 +48,27 @@ MODELS = [
     "ai",
 ]
 
+Variable = Literal[
+    "cc",
+    "cdd",
+    "hdd",
+    "heat_index",
+    "hgt500",
+    "mslp",
+    "precip",
+    "rh",
+    "temp",
+    "tmax",
+    "tmin",
+    "tsi",
+    "wgst",
+    "wind_chill",
+    "wspd",
+    "wspd100",
+]
+
+Field = Literal["anom", "vals", "anom_ens", "vals_ens"]
+
 _EXCLUDE_ARGS = ["force", "session", "verify", "verbose", "destination", "strict", "loc", "kwargs"]
 
 
@@ -74,15 +76,16 @@ def forecast_timeseries(
     # API inputs -------
     loc: Location,
     date: str | list[str] = "-default",
-    debias: bool = False,
-    field: str = "anom",
-    format: str = "nc",
-    model: str | list[str] = "blend",
+    debias: bool = False,  # noqa: vulture
+    field: Field | None = "anom",
+    format: Format = "nc",
+    model: Model | list[Model] = "blend",
     reference_clim: str = "salient",
     timescale="all",
-    variable: str = "temp",
+    variable: Variable | list[Variable] | None = "temp",
     version: str | list[str] = "-default",
-    weights: str | None = None,
+    weights: Weights = None,
+    custom_quantity: str | list[str] | None = None,
     # non-API arguments ---
     destination: str = "-default",
     force: bool = False,
@@ -127,18 +130,19 @@ def forecast_timeseries(
             - `long-range` is 1-4 quarters.  Will return a coordinate `forecast_date_quarterly` and a
                 data variable `anom_quarterly` or `vals_quarterly`.
             - `all` (default) will include `sub-seasonal`, `seasonal`, and `long-range` timescales
-        variable (str): The variable to query, defaults to `temp`
+        variable (str | list[str] | None): The variable(s) to query, defaults to `temp`
             To request multiple variables, separate them with a comma `temp,precip` or use a `list`.
             This will download one file per variable
             See the
             [Data Fields](https://salientpredictions.notion.site/Variables-d88463032846402e80c9c0972412fe60)
-            documentation for a full list of available historical variables.
+            documentation for a full list of available historical and forecast variables.
+        custom_quantity (str | list[str] | None): Name of a previously-uploaded custom quantity definition.
+            Defaults to `None`.  If specified, ignores `variable`.
         version (str): The model version of the Salient `blend` forecast.
             To request multiple versions, provide a list or comma-separated string.
             `-default` calls `get_default_version()`.
-        weights (str): Aggregation mechanism if using a `shapefile` or `location_file`. Currently
-            supported options are 'population' for a population-weighed mean and 'equal' for an arithmetic mean.
-            Defaults to None, which will not perform any weighting or aggregation.
+        weights (Weights): Aggregation mechanism if using a `shapefile`.
+            Default `None` performs no aggregation.
         destination (str): The destination directory for downloaded files.
             `-default` uses `get_file_destination()`
         force (bool): If False (default), don't download the data if it already exists
@@ -163,12 +167,23 @@ def forecast_timeseries(
             If multiple variables, dates, or models are requested,
             returns a `DataFrame` with column `file_name` additional columns for vectorized queries.
     """
-    assert field in ["anom", "vals", "anom_ens", "vals_ens"], f"Invalid field {field}"
-    assert format in ["nc", "csv"], f"Invalid format {format}"
+    format = _validate_enum(format, Format, name="format")
+    weights = _validate_enum(weights, Weights, name="weights")
 
     date = _expand_comma(date, name="date", default=datetime.today().strftime("%Y-%m-%d"))
-    variable = _expand_comma(variable, FORECAST_VARIABLES, "variable", default="temp")
-    model = _expand_comma(model, MODELS, default="blend")
+    custom_quantity = _expand_comma(custom_quantity, name="custom_quantity", default=None)
+    if custom_quantity is None:
+        variable = _expand_comma(variable, Variable, "variable", default="temp")
+        assert field in ["anom", "vals", "anom_ens", "vals_ens"], f"Invalid field {field}"
+    else:
+        # Ignore these args if custom_quantity is specified
+        variable = None
+        field = None
+
+    model = _expand_comma(model, Model, default="blend")
+
+    # Validate parameters that are used dynamically via locals()
+    assert isinstance(debias, bool), f"debias must be bool, got {type(debias)}"
 
     args = {k: v for k, v in {**locals(), **kwargs}.items() if k not in _EXCLUDE_ARGS}
 
@@ -195,7 +210,10 @@ def forecast_timeseries(
         return queries
 
 
-def stack_forecast(ds: xr.Dataset | str | list[str] | pd.DataFrame) -> xr.Dataset:
+def stack_forecast(
+    ds: xr.Dataset | str | list[str] | pd.DataFrame,
+    compute: bool = True,
+) -> xr.Dataset:
     """Align forecast_timeseries dataset(s) along `forecast_date` as a dimension.
 
     Args:
@@ -204,6 +222,7 @@ def stack_forecast(ds: xr.Dataset | str | list[str] | pd.DataFrame) -> xr.Datase
             - `str`: Path to a single forecast dataset file
             - `list[str]`: List of paths to multiple forecast dataset files
             - `pd.DataFrame`: DataFrame with `file_name` column containing paths
+        compute: If `False`, lazy-load datasets and delay computation (default `True`)
 
     Returns:
         xarray Dataset with `forecast_date` as a dimension and a `time` coordinate
@@ -214,7 +233,6 @@ def stack_forecast(ds: xr.Dataset | str | list[str] | pd.DataFrame) -> xr.Datase
     """
     FCST_DIM = "forecast_date"
     LEAD_DIM = "lead"
-    use_dask = False  # future enhancement: lazy-load
     if isinstance(ds, xr.Dataset) or isinstance(ds, xr.DataArray):
         assert FCST_DIM in ds.coords  # Ignore forecast_date_[weekly|monthly|quarterly]
         assert LEAD_DIM in ds.coords  # Ignore lead_[weekly|monthly|quarterly]
@@ -230,8 +248,8 @@ def stack_forecast(ds: xr.Dataset | str | list[str] | pd.DataFrame) -> xr.Datase
         )
     elif isinstance(ds, str):
         args = {"decode_timedelta": True}
-        opened = xr.open_dataset(ds, **args) if use_dask else xr.load_dataset(ds, **args)
-        return stack_forecast(opened)
+        opened = xr.load_dataset(ds, **args) if compute else xr.open_dataset(ds, **args)
+        return stack_forecast(opened, compute=compute)
     elif isinstance(ds, pd.DataFrame):
         return stack_forecast(ds.file_name)
     elif isinstance(ds, list) or isinstance(ds, pd.Series):
@@ -243,7 +261,7 @@ def stack_forecast(ds: xr.Dataset | str | list[str] | pd.DataFrame) -> xr.Datase
             combine="nested",
             decode_timedelta=True,
         )
-        if not use_dask:
+        if compute:
             stacked = stacked.compute()
         return stacked
     else:

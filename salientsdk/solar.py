@@ -8,6 +8,7 @@ https://salientpredictions.atlassian.net/browse/RD-1259
 """
 
 # import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pvlib as pv
 import requests
@@ -74,6 +75,10 @@ def data_timeseries_solar(
     format = "nc"
     frequency = "hourly"
     # units = "SI" - unnecessary, since it's the default
+
+    # Validate parameters that are used dynamically via locals()
+    assert isinstance(debias, bool), f"debias must be bool, got {type(debias)}"
+
     file = data_timeseries(**locals())
     vals = load_multihistory(file)
     vals = add_geo(
@@ -212,8 +217,6 @@ def run_pvlib_dataset(
     if model_chain is None:
         model_chain = dataset_to_modelchain(weather)
 
-    import numpy as np
-
     if isinstance(model_chain, list) and len(model_chain) > 1:
         if "location" not in weather.coords:
             raise ValueError(
@@ -231,7 +234,6 @@ def run_pvlib_dataset(
 
     (ac, dc, ei, poa_direct, poa_sky_diffuse, poa_ground_diffuse) = xr.apply_ufunc(
         lambda *args: _run_pvlib_slice(*args, model_chain=model_chain),
-        # _run_pvlib_slice,
         weather[timedim],
         weather["tsi"],
         weather["dhi"],
@@ -373,7 +375,8 @@ def _dataset_to_modelchain_single(ds: xr.Dataset, idx: int = 0) -> pv.modelchain
 
     def xtract(var, default=None):
         if var in ds:
-            return ds[var].values[idx]
+            values = ds[var].values
+            return values if values.shape == () else values[idx]
         elif default is None:
             raise ValueError(f"Variable '{var}' not available in the dataset")
         else:
@@ -459,11 +462,11 @@ def dataset_to_modelchain(
             If `ds` has a one lat/lon (and no `location`) or a 2-d array of
             lat/lon from a `shapefile` polygon, will return a single `ModelChain`.
     """
-    if "location" in ds.coords and "lat" in ds.coords and "lon" in ds.coords:
-        # Location(location_file)
+    if "location" in ds.dims and "lat" in ds.coords and "lon" in ds.coords:
+        # Location(location_file) - we may have different system properties at each location
         model_chain = [_dataset_to_modelchain_single(ds, i) for i in range(len(ds.location))]
     else:
-        if len(ds.coords["lat"]) > 1:
+        if len(ds.coords["lat"]) > 1 or len(ds.coords["lon"]) > 1:
             # Location(shapefile) gridded data with lat/lon.
             # Collapse to a single location.
             ds = ds.coarsen(lat=len(ds.lat), lon=len(ds.lon), boundary="trim").mean()
@@ -486,7 +489,7 @@ def _check_nans(ds: xr.Dataset, nan_check=0.01, timedim="time") -> xr.Dataset:
         xr.Dataset: A dataset containing the percentage of NaN values for each variable,
             grouped by `month` and `location` (if available).
     """
-    sum_dims = [timedim, "location"] if "location" in ds.coords else [timedim]
+    sum_dims = [timedim, "location"] if "location" in ds.dims else [timedim]
     nan_vars = [var for var in ds.data_vars if all(dim in ds[var].dims for dim in sum_dims)]
     nan_mask = ds[nan_vars].isnull()
 

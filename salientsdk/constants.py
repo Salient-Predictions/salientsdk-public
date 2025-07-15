@@ -31,6 +31,10 @@ MODEL_VERSIONS = ["v8", "v9"]
 
 DESTINATION = "salient_data"
 
+Weights = Literal[None, "population", "equal", "wind_capacity", "solar_capacity"]
+
+Format = Literal["nc", "csv"]
+
 
 def get_file_destination(destination: str = "-default", make: bool = True) -> str:
     """Get the default destination for downloaded files.
@@ -54,7 +58,9 @@ def get_file_destination(destination: str = "-default", make: bool = True) -> st
         destination = DESTINATION
 
     if destination is not None and make:
-        os.makedirs(destination, exist_ok=True)
+        mode = 0o755  # rwxr-xr-x
+        os.makedirs(destination, mode=mode, exist_ok=True)
+        os.chmod(destination, mode)  # in case directory already exists
 
     return destination
 
@@ -117,6 +123,10 @@ def _build_url(
         # apikey doesn't influence the file contents, so shouldn't be in the hash:
         if "apikey" in args:
             del args["apikey"]
+
+        # similarly, update doesn't influence either:
+        if "update" in args:
+            del args["update"]
 
         file_name += "_"
         file_name += hashlib.md5(str(args).encode()).hexdigest()
@@ -211,7 +221,7 @@ def set_model_version(version: str) -> None:
 
 def _expand_comma(
     val: str | list[str] | None,
-    valid: list[str] | None = None,
+    valid: list[str] | Any | None = None,
     name="value",
     default: str | None = None,
 ) -> list[str] | str | None:
@@ -223,7 +233,7 @@ def _expand_comma(
         val (str | list[str] | None): A single string that may contain commas.
             If a list of strings, convert to a single string if length == 1.
             If None, return None.
-        valid (list[str] | None): A list of valid values for the string.
+        valid (list[str] | Any): A list of valid values for the string, or a Literal type.
             If None (default) no validation is performed.
             If provided, asserts if any `val` is not in `valid`.
         name (str): The name of the value to use in error messages.
@@ -254,6 +264,9 @@ def _expand_comma(
             val = default if val == DEFAULT else val
 
     if valid:
+        # If valid is a Literal type, extract the values
+        if get_origin(valid) is Literal:
+            valid = list(get_args(valid))
         if isinstance(val, list):
             for v in val:
                 assert v in valid, f"{name} {v} not in {valid}"
@@ -374,3 +387,24 @@ def get_logger(name: str) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     return logging.getLogger(name)
+
+
+def _validate_enum(
+    val: str | None, valid: list[str] | Any | None = None, name="value"
+) -> str | None:
+    """Check to see if a value is in a list of valid values.
+
+    Args:
+        val (str | None): The value to validate.
+        valid (list[str] | Any | None): The valid options, either as a list of strings, a Literal type, or None.
+        name (str): The name of the value (for error messages).
+
+    Returns:
+        str | None: The validated value (unchanged).
+
+    Raises:
+        AssertionError: If val is not in valid.
+    """
+    valid = get_args(valid) if get_origin(valid) is Literal else valid
+    assert val in valid, f"{name} {val} not in {valid}"
+    return val

@@ -11,24 +11,27 @@ python -m salientsdk geo -lat 42 -lon -73 -u username -p password --force
 
 """
 
+from typing import Literal
+
 import pandas as pd
 import requests
 import xarray as xr
 
-from .constants import _build_urls, _collapse_comma
+from .constants import Format, _build_urls, _collapse_comma, _validate_enum
 from .location import Location
 from .login_api import download_queries
 
 _EXCLUDE_ARGS = ["force", "session", "verify", "verbose", "destination", "loc", "kwargs"]
 
-VARIABLES = [
-    # Elevation
+
+Variables = Literal[
+    # Elevation ---------
     "elevation",
     "slope",
-    # Population
+    # Population ---------
     "population",
     "pop_density",
-    # Soil
+    # Soil ---------
     "bdod",
     "cec",
     "cfvo",
@@ -65,19 +68,28 @@ VARIABLES = [
     "lulc_pft_per",
     "lulc_umd",
     "lulc_umd_per",
+    # Renewable Energy
+    "wind_capacity",
+    "wind_hub_height",
+    "wind_elev",
+    "wind_turbine_ct",
+    "solar_capacity",
+    "solar_capacity_0_axis",
+    "solar_capacity_1_axis",
+    "solar_capacity_2_axis",
 ]
 
-RESOLUTIONS = [1 / 4, 1 / 8, 1 / 16]
+Resolution = [1 / 4, 1 / 8, 1 / 16]
 
 
 def geo(
     # API arguments -----
     loc: Location,
-    variables: str | list[str] = "elevation",
+    variables: Variables | list[Variables] = "elevation",
     resolution: float = 0.25,
     start: str | None = None,
     end: str | None = None,
-    format: str = "nc",
+    format: Format = "nc",
     # Non-API arguments --------
     destination: str = "-default",
     force: bool = False,
@@ -94,14 +106,13 @@ def geo(
             If using a `shapefile` or `location_file`, may input a vector of file names which
             will trigger multiple calls to `downscale`.  This is useful because `downscale` requires
             that all points in a file be from the same continent.
-        variables (str): The variables to query, defaults to "elevation".
+        variables (Variable | list[Variable]): The variables to query, defaults to "elevation".
             Supports a comma separated list or list of variables.
-        resolution (float): The spatial resolution of the data in degrees.
+        resolution (float): The spatial resolution of the data in degrees.  Must be 1/4, 1/8, or 1/16.
         start (str): The start date of the time series (optional).
         end (str): The end date of the time series (optional).
-        format (str): The file format of the response.
+        format (Format): The file format of the response.
             Defaults to `nc` which returns a multivariate NetCDF file.
-            Also available: `csv` which returns a CSV file.
         destination (str): The destination directory for downloaded files.
         force (bool): If False (default), don't download the data if it already exists
         session (requests.Session): The session object to use for the request
@@ -117,8 +128,9 @@ def geo(
             additional columns documenting the vectorized input arguments such as
             `location_file`.
     """
-    assert resolution in RESOLUTIONS, f"Resolution must be one of {RESOLUTIONS}"
-    variables = _collapse_comma(variables, VARIABLES)
+    _validate_enum(format, Format, name="format")
+    assert resolution in Resolution, f"Resolution must be one of {Resolution}"
+    variables = _collapse_comma(variables, Variables)
 
     args = {k: v for k, v in {**locals(), **kwargs}.items() if k not in _EXCLUDE_ARGS}
     queries = _build_urls(endpoint="geo", args=loc.asdict(**args), destination=destination)

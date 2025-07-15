@@ -242,7 +242,7 @@ def _calc_skill(
 
     # At this point, all vectorization and file loading should be done.  Now we need to make sure
     # that the coordinates match.
-    if "time" in observations.coords:
+    if "time" in observations.dims:
         if any(coord.startswith("lead_") for coord in forecasts.coords):
             # floating timescale sub-seasonal/seasonal/long-range/all
             observations = align_daily_obs_to_lead(observations, forecasts)
@@ -262,7 +262,7 @@ def _calc_skill(
         # a single mean skill score.
         skill = _mean_forecast(skill)
 
-    return skill
+    return skill.compute()
 
 
 # ============== Utility functions ==================================

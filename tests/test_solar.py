@@ -23,6 +23,7 @@ TEST_DESTINATION = "test_solar"
 TEST_START = "2022-07-01"
 TEST_END = "2022-07-31"
 FORCE = False
+VERBOSE = False
 
 
 def run_data_timeseries_solar(session, loc: sk.Location):
@@ -33,6 +34,8 @@ def run_data_timeseries_solar(session, loc: sk.Location):
         end=TEST_END,
         destination=TEST_DESTINATION,
         force=FORCE,
+        verbose=VERBOSE,
+        session=session,
     )
     check_met(met)
     pwr = sk.solar.run_pvlib_dataset(met)
@@ -72,6 +75,7 @@ def test_downscale_solar_location(session):
             loc=solar_data_location(),
             date=TEST_START,
             members=3,
+            length=10,  # days
             session=session,
             force=FORCE,
         )
@@ -135,8 +139,8 @@ def main():
     """
     sk.constants.URL = "https://api-beta.salientpredictions.com/"
     session = sk.login()
-    test_data_timeseries_solar_location(session)
-    # test_data_timeseries_solar_shapefile(session)
+    # test_data_timeseries_solar_location(session)
+    test_data_timeseries_solar_shapefile(session)
     # test_data_timeseries_solar_latlon(session)
 
 

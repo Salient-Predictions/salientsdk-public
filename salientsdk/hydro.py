@@ -596,22 +596,29 @@ def _init_vic_destinations(destination: str, **kwargs) -> dict:
     Returns:
         Dictionary of paths to VIC inputs and outputs.
     """
+    md5hash = hashlib.md5(str(kwargs).encode()).hexdigest()
+
     dest_dir = get_file_destination(destination)
-    md5 = hashlib.md5(str(kwargs).encode()).hexdigest()
-    root_dir = f"{dest_dir}/vic_{md5}"
-    inputs_dir = f"{root_dir}/inputs"
-    os.makedirs(inputs_dir, exist_ok=True)
-    outputs_dir = f"{root_dir}/outputs"
-    os.makedirs(outputs_dir, exist_ok=True)
+
+    root_dir = os.path.join(dest_dir, f"vic_{md5hash}")
+    inputs_dir = os.path.join(root_dir, "inputs")
+    outputs_dir = os.path.join(root_dir, "outputs")
+
+    # Create directories with proper permissions
+    mode = 0o755  # rwxr-xr-x
+    for dir_path in [root_dir, inputs_dir, outputs_dir]:
+        os.makedirs(dir_path, mode=mode, exist_ok=True)
+        os.chmod(dir_path, mode)  # in case directory already exists
+
     return {
         "root_dir": root_dir,
         "inputs_dir": inputs_dir,
         "outputs_dir": outputs_dir,
-        "domain_path": f"{inputs_dir}/domain.nc",
-        "forcings_path": f"{inputs_dir}/forcings.",
-        "params_path": f"{inputs_dir}/params.nc",
-        "global_params_path": f"{inputs_dir}/global_params.txt",
-        "vic_log_path": f"{root_dir}/vic.log",
+        "domain_path": os.path.join(inputs_dir, "domain.nc"),
+        "forcings_path": os.path.join(inputs_dir, "forcings."),
+        "params_path": os.path.join(inputs_dir, "params.nc"),
+        "global_params_path": os.path.join(inputs_dir, "global_params.txt"),
+        "vic_log_path": os.path.join(root_dir, "vic.log"),
     }
 
 
@@ -696,9 +703,10 @@ def _get_salient_params(
         **kwargs,
     )
 
-    clim_ds = (
-        load_multihistory(clim_precip_paths).squeeze("region").drop_vars(["region", "spatial_ref"])
-    )
+    clim_ds = load_multihistory(clim_precip_paths)
+    assert clim_ds["location"].size == 1, "Location files can only include a single polygon!"
+    bad_vars = ["region_name", "spatial_ref", "location_id", "location"]
+    clim_ds = clim_ds.drop_vars(bad_vars, errors="ignore")
 
     # Compute average annual precipitation
     annual_prec_da = clim_ds["precip"].resample(time="YS").sum("time")
@@ -727,8 +735,10 @@ def _get_salient_params(
 
     # Reformat weather dataset
     weather_ds = load_multihistory(weather_paths)
-    assert weather_ds["region"].size == 1, "Location files can only include a single polygon!"
-    weather_ds = weather_ds.squeeze("region").drop_vars(["region", "spatial_ref"], errors="ignore")
+
+    assert weather_ds["location"].size == 1, "Location files can only include a single polygon!"
+    bad_vars = ["region_name", "spatial_ref", "location_id", "location"]
+    weather_ds = weather_ds.drop_vars(bad_vars, errors="ignore")
 
     # Merge datasets into a single "Salient" dataset
     salient_ds = xr.merge([geo_ds, weather_ds])
@@ -792,6 +802,7 @@ def _build_vic_domain(salient_ds: xr.Dataset, out_path: str) -> xr.Dataset:
             "run_cell": mask_da,
         }
     )
+
     domain_ds = xr.merge([domain_ds, df.to_xarray()])
     domain_ds.to_netcdf(out_path)
     _LOGGER.info(f"VIC domain dataset complete!")

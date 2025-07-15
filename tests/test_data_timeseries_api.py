@@ -5,7 +5,7 @@
 
 Usage example:
 ```
-python -m pytest -s tests/test_data_timeseries_api.py
+python -m pytest -s -v tests/test_data_timeseries_api.py
 ```
 
 """
@@ -192,6 +192,37 @@ def test_data_timeseries_apikey():  # noqa: D103
     assert "anom" in ts.data_vars
 
 
+def test_data_timeseries_custom_quantity(session, force=False):
+    """Make sure the custom quantity field works."""
+    # To get a list of valid custom quantities:
+    # sk.user_files(type="derived", session=session, destination=TEST_DEST)
+
+    loc = sk.Location(lat=42, lon=-73)
+    qnt = "anomalous_cool_period"
+    fil = sk.data_timeseries(
+        loc=loc,
+        custom_quantity=qnt,
+        start=TEST_START,
+        end="2020-12-31",
+        format="nc",
+        frequency="daily",
+        destination=TEST_DEST,
+        force=force,
+        session=session,
+        verbose=VERBOSE,
+    )
+
+    assert os.path.exists(fil)
+    assert fil.startswith(TEST_DEST)
+
+    ts = xr.open_dataset(fil)
+
+    assert qnt in ts
+
+    if VERBOSE:
+        print(ts)
+
+
 def test_data_timeseries_failure(session):  # noqa: D103
     loc = sk.Location(lat=42, lon=-73)
     with pytest.raises(AssertionError) as ae:
@@ -335,8 +366,9 @@ def local_test():
     # sk.constants.URL = "https://api-beta.salientpredictions.com/"
     session = sk.login()
     sk.set_file_destination(TEST_DEST)
-    test_extrapolate_trend(session)
+    # test_extrapolate_trend(session)
     # test_data_timeseries_success(session, force=False)
+    test_data_timeseries_custom_quantity(session, force=False)
 
 
 if __name__ == "__main__":

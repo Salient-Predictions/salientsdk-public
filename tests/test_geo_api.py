@@ -5,7 +5,7 @@
 
 Usage:
 ```
-python -s -m pytest tests/test_geo_api.py
+python -m pytest -s -v tests/test_geo_api.py
 ```
 
 """
@@ -117,8 +117,12 @@ def run_add_geo(loc, **kwargs):
     var = "temp"
     fld = "vals"
 
-    meth = sk.data_timeseries(loc, var, fld, start=start, end=end, frequency="hourly", **kwargs)
-    metd = sk.data_timeseries(loc, var, fld, start=start, end=end, frequency="daily", **kwargs)
+    meth = sk.data_timeseries(
+        loc=loc, variable=var, field=fld, start=start, end=end, frequency="hourly", **kwargs
+    )
+    metd = sk.data_timeseries(
+        loc=loc, variable=var, field=fld, start=start, end=end, frequency="daily", **kwargs
+    )
     meth = xr.open_dataset(meth)
     metd = xr.open_dataset(metd)
 

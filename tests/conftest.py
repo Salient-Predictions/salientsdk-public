@@ -1,5 +1,6 @@
 """Set up and tear down for the test suite."""
 
+import os
 import shutil
 import tempfile
 
@@ -47,6 +48,15 @@ def destination():
     """Destination directory for test output available for whole test session."""
     try:
         tmdir = tempfile.TemporaryDirectory()
+        os.chmod(tmdir.name, 0o755)
         yield tmdir.name
     finally:
-        shutil.rmtree(tmdir.name)
+        try:
+            # Force remove read-only files
+            def remove_readonly(func, path, _):
+                os.chmod(path, 0o755)
+                func(path)
+
+            shutil.rmtree(tmdir.name, onerror=remove_readonly)
+        except Exception as e:
+            print(f"Warning: Failed to cleanup {tmdir.name}: {e}")

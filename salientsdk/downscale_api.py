@@ -73,7 +73,7 @@ def downscale(
         members (int): The number of ensemble members to download
         frequency (str): The temporal resolution of the time series, `daily` (default) or `hourly`.
         reference_clim (str): Reference period to calculate anomalies
-        debias (bool): If True, debias the data
+        debias (bool): If True, debias the data to observation stations
         version (str): The model version of the Salient `blend` forecast.
         weights (str): The variable that will be used to weight each grid point within a
             `shapefile`.  Defaults to unweighted, can also weight by `population`.

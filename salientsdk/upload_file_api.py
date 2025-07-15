@@ -12,6 +12,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 from importlib import resources
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 import requests
@@ -39,6 +40,7 @@ def _upload_single_file(
     session: requests.Session | None = None,
     apikey: str | None = None,
     verify: bool = True,
+    update: bool = False,
 ) -> None:
     """Internal function to upload a single file with rate limiting."""
     if not os.path.exists(file):
@@ -46,7 +48,7 @@ def _upload_single_file(
     if session is None:
         session = get_current_session()
 
-    args = None if apikey is None else {"apikey": apikey}
+    args = {"apikey": apikey, "update": update}
     (url, loc_file) = _build_url("upload_file", args=args)
 
     with open(file, "rb") as f:
@@ -67,6 +69,7 @@ def upload_file(
     session: requests.Session | None = None,
     apikey: str | None = None,
     verify: bool | None = None,
+    update: bool = False,
 ) -> None:
     """Upload location_file or shapefile.
 
@@ -81,6 +84,8 @@ def upload_file(
         apikey (str | None): The API key to use for the request.
             In most cases, this is not needed if a `session` is provided.
         verify (bool): If True (default), verify the SSL certificate
+        update: Boolean whether to overwrite any potential custom quantities
+            with the same name.
 
     Returns:
         File ID(s) returned by the API
@@ -94,7 +99,13 @@ def upload_file(
         session = get_current_session()
     verify = get_verify_ssl(verify)
 
-    args = {"verbose": verbose, "session": session, "apikey": apikey, "verify": verify}
+    args = {
+        "verbose": verbose,
+        "session": session,
+        "apikey": apikey,
+        "verify": verify,
+        "update": update,
+    }
     if isinstance(file, str):
         return _upload_single_file(file=file, **args)
     if not file:
@@ -334,6 +345,8 @@ def upload_location_file(
 
 
 def user_files(
+    type: Literal["location", "derived"] = "location",
+    # Non-API arguments --------
     destination: str = "-default",
     session: requests.Session | None = None,
     apikey: str | None = None,
@@ -342,7 +355,12 @@ def user_files(
 ) -> str:
     """List the location and shape files uploaded by the user.
 
+    This will call the [get_files](https://api.salientpredictions.com/v2/documentation/api/#/General/get_files)
+    API endpoint and return a json file.
+
     Args:
+        type (str): Either `location` (default) for shapefiles and location_files or `derived`
+            for custom quantities.
         destination (str): The destination directory for the resulting JSON file
         session (requests.Session): The session object to use for the request
         apikey (str | None): The API key to use for the request.
@@ -357,7 +375,7 @@ def user_files(
     """
     format = "json"
     endpoint = "user_files"
-    (url, loc_file) = _build_url(endpoint, args=None, destination=destination)
+    (url, loc_file) = _build_url(endpoint, args={"type": type}, destination=destination)
     loc_file = f"{loc_file}.{format}"
 
     download_query(

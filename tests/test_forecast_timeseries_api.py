@@ -5,7 +5,7 @@
 
 Usage example:
 ```
-python -m pytest -s tests/test_forecast_timeseries_api.py
+python -m pytest -s -v tests/test_forecast_timeseries_api.py
 ```
 
 """
@@ -49,6 +49,35 @@ def test_forecast_timeseries_success(session):  # noqa: D103
     ts = xr.open_dataset(fil, decode_timedelta=True)
     assert "forecast_date_monthly" in ts.coords
     assert "anom_monthly" in ts.data_vars
+
+
+def test_forecast_timeseries_custom_quantity(session, force=True):
+    """Make sure custom_quantity argument works."""
+    # Get a list of valid custom quantities:
+    # src = sk.user_files(type="derived", session=session, destination=TEST_DEST)
+
+    loc = sk.Location(lat=TEST_LAT, lon=TEST_LON)
+    qnt = "anomalous_cool_period"
+    fil = sk.forecast_timeseries(
+        loc=loc,
+        # variable="temp",  # System should be smart enough to ignore default value
+        custom_quantity=qnt,
+        model="gem",
+        # field="anom", # System should be smart enough to ignore default value
+        timescale="daily",
+        date=TEST_DATE,
+        force=force,
+        session=session,
+        verbose=verbose,
+        destination=TEST_DEST,
+    )
+    assert os.path.exists(fil)
+    ts = xr.open_dataset(fil, decode_timedelta=True)
+
+    assert qnt in ts
+
+    if verbose:
+        print(ts)
 
 
 def test_forecast_timeseries_multi_success(session):  # noqa: D103
@@ -131,7 +160,8 @@ def run_local():
     session = sk.login()
     # test_crps_vectorized(session=session, comprehensive=True)
     # test_forecast_timeseries_success(session)
-    test_forecast_timeseries_multi_success(session)
+    # test_forecast_timeseries_multi_success(session)
+    test_forecast_timeseries_custom_quantity(session, force=True)
 
 
 if __name__ == "__main__":
