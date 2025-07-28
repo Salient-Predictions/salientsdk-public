@@ -16,9 +16,9 @@ from .constants import (
     set_file_destination,
     set_model_version,
 )
-from .data_timeseries_api import data_timeseries, load_multihistory
+from .data_timeseries_api import data_timeseries, load_multihistory, stack_history
 from .downscale_api import downscale
-from .forecast_timeseries_api import forecast_timeseries
+from .forecast_timeseries_api import forecast_timeseries, stack_forecast
 from .forecast_zarr import ForecastZarr
 from .geo_api import geo
 from .hindcast_summary_api import hindcast_summary, transpose_hindcast_summary
@@ -62,6 +62,7 @@ __all__ = [
     "downscale",
     "ForecastZarr",
     "forecast_timeseries",
+    "stack_forecast",
     "geo",
     "get_current_session",
     "set_file_destination",
@@ -70,6 +71,7 @@ __all__ = [
     "hindcast_summary",
     "transpose_hindcast_summary",
     "load_multihistory",
+    "stack_history",
     "Location",
     "merge_location_data",
     "met_stations",

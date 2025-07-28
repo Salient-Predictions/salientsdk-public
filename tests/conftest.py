@@ -3,10 +3,29 @@
 import os
 import shutil
 import tempfile
+from pathlib import Path
 
 import pytest
 
 import salientsdk as sk
+
+
+def get_test_dir(path_or_name: str | Path | None = None) -> Path:
+    """Get a user-specific temporary directory for test files.
+
+    Arguments:
+        path_or_name: If specified, will create a subdirectory underneath the
+            primary testing directory. Can be either:
+            - A subdirectory name
+            - A path to a file (e.g. __file__) - the filename will be extracted
+
+    Returns:
+        Path: Base directory for test files, unique to current user
+    """
+    base_dir = Path(tempfile.gettempdir()) / f"salientsdk_test_{os.getuid()}"
+    base_dir.mkdir(mode=0o700, exist_ok=True)
+
+    return base_dir if path_or_name is None else base_dir / Path(path_or_name).stem
 
 
 @pytest.fixture(scope="session", autouse=True)

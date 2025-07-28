@@ -32,6 +32,10 @@
 
 ### Utilities / Data
 
+::: salientsdk.stack_forecast
+
+::: salientsdk.stack_history
+
 ::: salientsdk.load_multihistory
 
 ::: salientsdk.transpose_hindcast_summary

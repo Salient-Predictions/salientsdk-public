@@ -19,12 +19,12 @@ import pytest
 import xarray as xr
 
 import salientsdk as sk
+from tests.conftest import get_test_dir
 
 VERBOSE = False
 
-
 TEST_START = "2020-01-01"
-TEST_DEST = "test_data_timeseries"
+TEST_DEST = get_test_dir(__file__)
 
 
 def test_data_timeseries_success(session, force=True):  # noqa: D103
@@ -44,7 +44,7 @@ def test_data_timeseries_success(session, force=True):  # noqa: D103
     )
 
     assert os.path.exists(fil)
-    assert fil.startswith(TEST_DEST)
+    assert str(fil).startswith(str(TEST_DEST))
 
     ts = xr.open_dataset(fil)
     assert "time" in ts.coords
@@ -53,7 +53,7 @@ def test_data_timeseries_success(session, force=True):  # noqa: D103
     # to test stack_observed, we need a synthetic forecast timeseries
     # with forecast_date and lead defined so we can match it.
     fcst = mock_stacked_forecast(TEST_START)
-    stk = sk.data_timeseries_api.stack_history(fil, fcst.forecast_date, fcst.lead)
+    stk = sk.stack_history(fil, fcst.forecast_date, fcst.lead)
 
     # Test 1: Coordinate dimensions match
     assert set(fcst.forecast_date.values) == set(
@@ -153,7 +153,7 @@ def test_data_timeseries_multi_success(session):
 
     for fn in fil["file_name"]:
         assert os.path.exists(fn)
-        assert fn.startswith(TEST_DEST)
+        assert str(fn).startswith(str(TEST_DEST))
 
     fld = ["anom", "vals"]
     mds = sk.load_multihistory(fil, fld)
@@ -185,7 +185,7 @@ def test_data_timeseries_apikey():  # noqa: D103
     )
 
     assert os.path.exists(fil)
-    assert fil.startswith(TEST_DEST)
+    assert str(fil).startswith(str(TEST_DEST))
 
     ts = xr.open_dataset(fil)
     assert "time" in ts.coords
@@ -198,7 +198,7 @@ def test_data_timeseries_custom_quantity(session, force=False):
     # sk.user_files(type="derived", session=session, destination=TEST_DEST)
 
     loc = sk.Location(lat=42, lon=-73)
-    qnt = "anomalous_cool_period"
+    qnt = "cold_spell"
     fil = sk.data_timeseries(
         loc=loc,
         custom_quantity=qnt,
@@ -213,7 +213,7 @@ def test_data_timeseries_custom_quantity(session, force=False):
     )
 
     assert os.path.exists(fil)
-    assert fil.startswith(TEST_DEST)
+    assert str(fil).startswith(str(TEST_DEST))
 
     ts = xr.open_dataset(fil)
 
@@ -235,6 +235,7 @@ def test_data_timeseries_failure(session):  # noqa: D103
             format="nc",
             frequency="daily",
             force=True,
+            destination=TEST_DEST,
             session=session,
             verbose=VERBOSE,
         )
@@ -251,6 +252,7 @@ def test_data_timeseries_failure(session):  # noqa: D103
             frequency="hourly",
             force=True,
             session=session,
+            destination=TEST_DEST,
             verbose=VERBOSE,
         )
     assert "invalid_var" in str(ve.value)
@@ -266,6 +268,7 @@ def test_data_timeseries_failure(session):  # noqa: D103
             frequency="hourly",
             force=True,
             session=session,
+            destination=TEST_DEST,
             verbose=VERBOSE,
         )
     assert "hourly" in str(he.value)
@@ -365,10 +368,9 @@ def local_test():
     """
     # sk.constants.URL = "https://api-beta.salientpredictions.com/"
     session = sk.login()
-    sk.set_file_destination(TEST_DEST)
     # test_extrapolate_trend(session)
-    # test_data_timeseries_success(session, force=False)
-    test_data_timeseries_custom_quantity(session, force=False)
+    test_data_timeseries_success(session, force=False)
+    # test_data_timeseries_custom_quantity(session, force=False)
 
 
 if __name__ == "__main__":

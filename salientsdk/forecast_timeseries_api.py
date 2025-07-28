@@ -251,7 +251,7 @@ def stack_forecast(
         opened = xr.load_dataset(ds, **args) if compute else xr.open_dataset(ds, **args)
         return stack_forecast(opened, compute=compute)
     elif isinstance(ds, pd.DataFrame):
-        return stack_forecast(ds.file_name)
+        return stack_forecast(ds.file_name, compute=compute)
     elif isinstance(ds, list) or isinstance(ds, pd.Series):
         ds = pd.Series(ds).dropna().tolist()
         stacked = xr.open_mfdataset(

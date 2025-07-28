@@ -12,7 +12,6 @@ python -s -m pytest tests/test_hydro.py
 
 import datetime as dt
 import os
-import sys
 
 import numpy as np
 import pandas as pd
@@ -20,6 +19,7 @@ import pytest
 import xarray as xr
 
 import salientsdk as sk
+from tests.conftest import get_test_dir
 
 VIC_TEST_START = "2020-01-01"
 VIC_TEST_END = "2020-02-01"
@@ -27,8 +27,11 @@ VIC_TEST_REF_CLIM = 2
 VIC_TEST_SOIL_DEPTHS = [0.05, 1, 2.0]
 
 
+TEST_DEST = get_test_dir(__file__)
+
+
 @pytest.fixture
-def vic_file(session, destination):
+def vic_file(session):
     """Generates a location file for testing VIC functions."""
     geo_name = "VIC Test"
     return sk.upload_bounding_box(
@@ -37,7 +40,7 @@ def vic_file(session, destination):
         south=38,
         north=40,
         geoname=geo_name,
-        destination=destination,
+        destination=TEST_DEST,
         session=session,
         force=False,
         verbose=False,
@@ -51,13 +54,10 @@ def vic_loc(vic_file):
 
 
 @pytest.fixture
-def vic_destinations(
-    destination,
-    vic_loc,
-):
+def vic_destinations(vic_loc):
     """Returns dictionary of paths to VIC inputs and outputs for testing."""
     return sk.hydro._init_vic_destinations(
-        destination=destination,
+        destination=TEST_DEST,
         loc=vic_loc.shapefile,
         start=VIC_TEST_START,
         end=VIC_TEST_END,
@@ -66,14 +66,14 @@ def vic_destinations(
 
 
 @pytest.fixture
-def vic_salient_ds(session, vic_loc, destination):
+def vic_salient_ds(session, vic_loc):
     """Fetches salient data used to generate VIC domain and parameter datasets."""
     return sk.hydro._get_salient_params(
         loc=vic_loc,
         start=VIC_TEST_START,
         end=VIC_TEST_END,
         session=session,
-        destination=destination,
+        destination=TEST_DEST,
     )
 
 
@@ -129,10 +129,7 @@ def test_calc_swe():
     assert (met["swe"] >= 0).all(), "Not all SWE values are non-negative"
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 11), reason="Test is not compatible with Python 3.11 yet"
-)
-def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations, destination):
+def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations):
     """Test the _build_vic_inputs functon.
 
     pytest tests/test_hydro.py::test_build_vic_inputs
@@ -142,7 +139,7 @@ def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations, destinat
     with pytest.raises(AssertionError):
         sk.hydro._build_vic_inputs(
             loc=invalid_loc,
-            destination=destination,
+            destination=TEST_DEST,
             start=VIC_TEST_START,
             end=VIC_TEST_END,
             reference_clim=VIC_TEST_REF_CLIM,
@@ -153,7 +150,7 @@ def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations, destinat
     with pytest.raises(AssertionError):
         sk.hydro._build_vic_inputs(
             loc=invalid_loc,
-            destination=destination,
+            destination=TEST_DEST,
             start=VIC_TEST_START,
             end=VIC_TEST_END,
             reference_clim=VIC_TEST_REF_CLIM,
@@ -165,7 +162,7 @@ def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations, destinat
     with pytest.raises(AssertionError):
         sk.hydro._build_vic_inputs(
             loc=vic_loc,
-            destination=destination,
+            destination=TEST_DEST,
             start=str(invalid_start),
             end=str(sk.hydro.VIC_VALID_DATE_RANGE[1]),
             reference_clim=VIC_TEST_REF_CLIM,
@@ -176,7 +173,7 @@ def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations, destinat
     with pytest.raises(AssertionError):
         sk.hydro._build_vic_inputs(
             loc=vic_loc,
-            destination=destination,
+            destination=TEST_DEST,
             start=str(sk.hydro.VIC_VALID_DATE_RANGE[0]),
             end=str(invalid_end),
             reference_clim=VIC_TEST_REF_CLIM,
@@ -188,7 +185,7 @@ def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations, destinat
     with pytest.raises(AssertionError):
         sk.hydro._build_vic_inputs(
             loc=vic_loc,
-            destination=destination,
+            destination=TEST_DEST,
             start=VIC_TEST_END,
             end=VIC_TEST_START,
             reference_clim=VIC_TEST_REF_CLIM,
@@ -197,7 +194,7 @@ def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations, destinat
 
     actual_vic_destinations = sk.hydro._build_vic_inputs(
         loc=vic_loc,
-        destination=destination,
+        destination=TEST_DEST,
         start=VIC_TEST_START,
         end=VIC_TEST_END,
         reference_clim=VIC_TEST_REF_CLIM,
@@ -207,9 +204,6 @@ def test_build_vic_inputs(session, vic_file, vic_loc, vic_destinations, destinat
     assert actual_vic_destinations == vic_destinations
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 11), reason="Test is not compatible with Python 3.11 yet"
-)
 def test_build_vic_domain(vic_domain_ds, vic_destinations):
     """Test the _build_vic_domain function."""
     # Ensure proper variables are returned for VIC domain dataset
@@ -222,10 +216,7 @@ def test_build_vic_domain(vic_domain_ds, vic_destinations):
     assert os.path.exists(vic_destinations["domain_path"])
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 11), reason="Test is not compatible with Python 3.11 yet"
-)
-def test_build_vic_forcings(vic_salient_ds, vic_domain_ds, vic_destinations):
+def test_build_vic_forcings(vic_salient_ds, vic_destinations):
     """Test the _build_vic_forcings function."""
     # Ensure proper variables are returned for VIC domain dataset
     forcings_ds = sk.hydro._build_vic_forcings(
@@ -251,9 +242,6 @@ def test_build_vic_forcings(vic_salient_ds, vic_domain_ds, vic_destinations):
     assert os.path.exists(f"{vic_destinations['forcings_path']}{year}.nc")
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 11), reason="Test is not compatible with Python 3.11 yet"
-)
 def test_build_vic_params(vic_salient_ds, vic_domain_ds, vic_destinations):
     """Test the _build_vic_params function.
 
