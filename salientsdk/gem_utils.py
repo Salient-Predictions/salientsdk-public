@@ -145,6 +145,13 @@ def _subselect_and_chunk(
     limit_samples: bool = False,
     chunks: dict | None = None,
 ) -> xr.Dataset:
+    if "processed" in ds.coords:
+        # Select only processed dates, have to switch dims to enable `.sel` rather than `.where`
+        ds = (
+            ds.swap_dims({"forecast_date": "processed"})
+            .sel(processed=True)
+            .swap_dims({"processed": "forecast_date"})
+        )
     if "ensemble" in ds.dims:
         ds = ds.rename(ensemble="sample")
 

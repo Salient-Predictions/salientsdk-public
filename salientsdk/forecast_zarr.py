@@ -29,6 +29,7 @@ import xarray as xr
 
 from .gem_utils import get_gem_dataset
 from .location import Location
+from .login_api import _get_secret
 
 MEMORY_WARN_GB = 8
 MEMORY_MAX_GB = 64
@@ -227,19 +228,35 @@ class ZarrBase(ABC):
         """Validate the credentials for direct zarr store access.
 
         Will read from environment variables if no arguments are passed.
+        If environment variables are not found, will attempt to get secrets from Google Cloud Secret Manager.
         """
         if not key_id:
             key_id = os.getenv("SALIENT_DIRECT_ID")
+            if key_id is None:
+                try:
+                    key_id = _get_secret("CLOUDFLARE_R2_TEST_ID")
+                except Exception:
+                    pass
             assert (
                 key_id is not None
             ), "Must provide `key_id` or set `SALIENT_DIRECT_ID` in your environment."
         if not key_secret:
             key_secret = os.getenv("SALIENT_DIRECT_SECRET")
+            if key_secret is None:
+                try:
+                    key_secret = _get_secret("CLOUDFLARE_R2_TEST_SECRET")
+                except Exception:
+                    pass
             assert (
-                key_id is not None
+                key_secret is not None
             ), "Must provide `key_secret` or set `SALIENT_DIRECT_SECRET` in your environment."
         if not direct_url:
             direct_url = os.getenv("SALIENT_DIRECT_URL")
+            if direct_url is None:
+                try:
+                    direct_url = _get_secret("CLOUDFLARE_R2_TEST_URL")
+                except Exception:
+                    pass
             assert (
                 direct_url is not None
             ), "Must provide `direct_url` or set `SALIENT_DIRECT_URL` in your environment."
@@ -476,7 +493,7 @@ class ZarrGEM(ZarrBase):
     _REGIONS = ["north-america"]
     _FIELDS = ["anom", "vals", "anom_ens", "vals_ens"]
     _TIMESCALES = ["daily"]
-    _AVAILABLE_DATES = xr.date_range("2020-10-16", "2025-04-30", freq="D")
+    _AVAILABLE_DATES = xr.date_range("2020-10-16", "today", freq="D")
 
     @property
     def FORECAST_VARIABLES(self):

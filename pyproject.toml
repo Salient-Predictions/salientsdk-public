@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "salientsdk"
-version = "0.3.41"
+version = "0.3.42"
 description = "Salient Predictions Software Development Kit"
 authors = ["Salient Predictions <help@salientpredictions.com>"]
 license = "LicenseRef-Custom"

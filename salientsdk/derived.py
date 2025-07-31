@@ -87,6 +87,17 @@ def heat_index(ds: xr.Dataset) -> xr.DataArray:
     return out
 
 
+def wind_speed(ds: xr.Dataset, h: int = 10, h_ref: int = 100) -> xr.DataArray:
+    """Wind speed at height h computed via a power law from a reference height."""
+    if h == 10 and "wspd" in ds.data_vars:
+        return ds["wspd"]
+    if f"wspd{h}" in ds.data_vars:
+        return ds[f"wspd{h}"]
+    alpha = 1 / 7
+    ws_ref = ds[f"wspd{h_ref}"]
+    return ws_ref * (h / h_ref) ** alpha
+
+
 def wind_chill(ds: xr.Dataset) -> xr.DataArray:
     """Minimum daily wind chill (°C) computed from tmin and wind speed."""
     t = ds["tmin"]
